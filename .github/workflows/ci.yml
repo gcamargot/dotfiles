@@ -22,11 +22,11 @@ jobs:
 
       - name: Run ShellCheck
         run: |
-          shellcheck -s bash .aliases .bashrc install.sh install_packages.sh tests/test.sh
+          shellcheck -s bash .aliases .bashrc install.sh install_packages.sh check_updates.sh tests/test.sh
 
       - name: Verify Bash & Zsh syntax
         run: |
-          bash -n .aliases .bashrc install.sh install_packages.sh tests/test.sh
+          bash -n .aliases .bashrc install.sh install_packages.sh check_updates.sh tests/test.sh
           zsh -n .aliases .zshrc
 
       - name: Run Dotfiles Test Suite

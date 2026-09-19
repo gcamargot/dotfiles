@@ -35,3 +35,4 @@ undo/
 # Package manager / tool caches
 node_modules/
 .cache/
+.last_update_check

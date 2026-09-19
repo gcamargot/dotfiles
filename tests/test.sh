@@ -30,7 +30,7 @@ echo "=================================================="
 
 # 1. Test Bash Syntax
 info "Checking Bash syntax..."
-for file in .aliases .bashrc install.sh install_packages.sh tests/test.sh; do
+for file in .aliases .bashrc install.sh install_packages.sh check_updates.sh tests/test.sh; do
     if [ -f "$file" ]; then
         if bash -n "$file"; then
             pass "bash -n $file"
@@ -59,7 +59,7 @@ fi
 # 3. Test ShellCheck (if shellcheck is available)
 if command -v shellcheck >/dev/null 2>&1; then
     info "Running ShellCheck..."
-    for file in .aliases .bashrc install.sh install_packages.sh tests/test.sh; do
+    for file in .aliases .bashrc install.sh install_packages.sh check_updates.sh tests/test.sh; do
         if [ -f "$file" ]; then
             if shellcheck -s bash "$file"; then
                 pass "shellcheck $file"

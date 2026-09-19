@@ -29,10 +29,11 @@ alias kl="kubectl logs"
 alias krew="kubectl krew"
 alias kvs="kubectl view-secret"
 
-# Git shortcuts
+# Git & Dotfiles shortcuts
 alias gs="git status -sb"
 alias gd="git diff"
 alias gl="git log --oneline --graph --decorate -n 15"
+alias df-update="[ -f \"\$HOME/dotfiles/check_updates.sh\" ] && \"\$HOME/dotfiles/check_updates.sh\" --force || git -C \"\$HOME/dotfiles\" pull --ff-only"
 
 # Allow local machine-specific aliases without tracking them in git
 if [ -f "$HOME/.aliases.local" ]; then

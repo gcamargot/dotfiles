@@ -73,3 +73,9 @@ if [ -f "$HOME/.zshrc.local" ]; then
     # shellcheck disable=SC1091
     source "$HOME/.zshrc.local"
 fi
+
+# Periodic dotfiles update check
+if [ -f "$HOME/dotfiles/check_updates.sh" ]; then
+    # shellcheck disable=SC1091
+    . "$HOME/dotfiles/check_updates.sh"
+fi

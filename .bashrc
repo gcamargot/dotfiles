@@ -74,3 +74,9 @@ if [ -f "$HOME/.bashrc.local" ]; then
     # shellcheck disable=SC1091
     . "$HOME/.bashrc.local"
 fi
+
+# Periodic dotfiles update check
+if [ -f "$HOME/dotfiles/check_updates.sh" ]; then
+    # shellcheck disable=SC1091
+    . "$HOME/dotfiles/check_updates.sh"
+fi

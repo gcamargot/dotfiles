@@ -20,6 +20,7 @@ dotfiles/
 |   `-- config.example   # Plantilla segura para ~/.ssh/config (sin credenciales)
 |-- requirements.txt     # Paquetes para APT (Linux) y Homebrew (macOS)
 |-- install_packages.sh  # Instalador de dependencias para APT y Brew
+|-- check_updates.sh    # Verificador de actualizaciones remotas (con throttling)
 |-- install.sh           # Script de instalacion con backups y modo --dry-run
 |-- tests/
 |   `-- test.sh          # Suite de pruebas automatizadas locales
@@ -51,6 +52,18 @@ Los aliases en `.aliases` estan disponibles tanto en Bash como en Zsh:
   * gs: git status -sb
   * gd: git diff
   * gl: git log en una linea
+  * df-update: Verifica y actualiza dotfiles con git pull
+
+---
+
+## Actualizaciones
+
+Al iniciar una shell interactiva, check_updates.sh comprueba cada 12 horas si hay nuevos commits en GitHub y te pregunta [y/N] si deseas actualizar.
+
+Para forzar la comprobacion en cualquier momento:
+```bash
+df-update
+```
 
 ---
 
