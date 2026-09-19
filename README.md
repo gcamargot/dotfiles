@@ -18,6 +18,8 @@ dotfiles/
 |   `-- nvim/            # Configuracion completa de Neovim
 |-- ssh/
 |   `-- config.example   # Plantilla segura para ~/.ssh/config (sin credenciales)
+|-- requirements.txt     # Paquetes para APT (Linux) y Homebrew (macOS)
+|-- install_packages.sh  # Instalador de dependencias para APT y Brew
 |-- install.sh           # Script de instalacion con backups y modo --dry-run
 |-- tests/
 |   `-- test.sh          # Suite de pruebas automatizadas locales
@@ -66,7 +68,14 @@ Para revisar que enlaces y respaldos se crearian sin modificar archivos:
 ./install.sh --dry-run
 ```
 
-### 3. Instalar
+### 3. Instalar dependencias del sistema (Opcional)
+Instala los paquetes listados en requirements.txt usando apt o brew:
+```bash
+./install_packages.sh --dry-run   # Simular que paquetes instalaria
+./install_packages.sh             # Instalar paquetes
+```
+
+### 4. Instalar dotfiles
 Crea enlaces simbolicos a $HOME. Si ya existen archivos con el mismo nombre, se respaldan en ~/.dotfiles_backup_<fecha>/:
 ```bash
 ./install.sh

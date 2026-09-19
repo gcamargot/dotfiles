@@ -1,0 +1,30 @@
+# ==============================================================================
+# DevOps Dotfiles - Package Requirements
+# Compatible with both APT (Debian/Ubuntu) and Homebrew (macOS)
+#
+# Format:
+# TOOL_NAME     | APT_PACKAGE    | BREW_PACKAGE
+# Use '-' if a package is not available in that package manager.
+# ==============================================================================
+
+# Core & Version Control
+git             | git            | git
+curl            | curl           | curl
+zsh             | zsh            | zsh
+tmux            | tmux           | tmux
+
+# Editor & Search Tools
+neovim          | neovim         | neovim
+ripgrep         | ripgrep        | ripgrep
+fzf             | fzf            | fzf
+zoxide          | zoxide         | zoxide
+jq              | jq             | jq
+
+# Script Validation
+shellcheck      | shellcheck     | shellcheck
+
+# DevOps Tools
+# Note: On macOS brew installs mikefarah/yq.
+# On Linux, install_packages.sh handles mikefarah/yq binary fallback.
+yq              | -              | yq
+kubecolor       | -              | kubecolor
