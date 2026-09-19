@@ -4,55 +4,64 @@
 # Checks for remote updates on GitHub with throttling to prevent terminal lag.
 # ==============================================================================
 
-# Only run in interactive shells
-case $- in
-    *i*) ;;
-    *) return 0 2>/dev/null || exit 0 ;;
-esac
+check_for_updates() {
+    # Only run in interactive shells
+    case $- in
+        *i*) ;;
+        *) return 0 ;;
+    esac
 
-DOTFILES_DIR="${DOTFILES_DIR:-$HOME/dotfiles}"
-[ -d "$DOTFILES_DIR/.git" ] || return 0 2>/dev/null || exit 0
+    DOTFILES_DIR="${DOTFILES_DIR:-$HOME/dotfiles}"
+    [ -d "$DOTFILES_DIR/.git" ] || return 0
 
-FORCE=false
-for arg in "$@"; do
-    if [ "$arg" = "--force" ]; then
-        FORCE=true
-    fi
-done
-
-# 12 hours check interval (43200 seconds)
-CHECK_INTERVAL=43200
-LAST_CHECK_FILE="$DOTFILES_DIR/.last_update_check"
-CURRENT_TIME=$(date +%s)
-
-if [ "$FORCE" = false ] && [ -f "$LAST_CHECK_FILE" ]; then
-    LAST_CHECK=$(cat "$LAST_CHECK_FILE" 2>/dev/null || echo 0)
-    if [[ "$LAST_CHECK" =~ ^[0-9]+$ ]]; then
-        if [ $((CURRENT_TIME - LAST_CHECK)) -lt "$CHECK_INTERVAL" ]; then
-            return 0 2>/dev/null || exit 0
+    local force=false
+    for arg in "$@"; do
+        if [ "$arg" = "--force" ]; then
+            force=true
         fi
-    fi
-fi
+    done
 
-# Update timestamp
-echo "$CURRENT_TIME" > "$LAST_CHECK_FILE" 2>/dev/null || true
+    # 12 hours check interval (43200 seconds)
+    local check_interval=43200
+    local last_check_file="$DOTFILES_DIR/.last_update_check"
+    local current_time
+    current_time=$(date +%s)
 
-# Silent fetch from remote main
-if git -C "$DOTFILES_DIR" fetch --quiet origin main 2>/dev/null; then
-    LOCAL=$(git -C "$DOTFILES_DIR" rev-parse HEAD 2>/dev/null)
-    REMOTE=$(git -C "$DOTFILES_DIR" rev-parse origin/main 2>/dev/null)
-
-    if [ -n "$LOCAL" ] && [ -n "$REMOTE" ] && [ "$LOCAL" != "$REMOTE" ]; then
-        BEHIND=$(git -C "$DOTFILES_DIR" rev-list --count "HEAD..origin/main" 2>/dev/null || echo 0)
-        if [ "$BEHIND" -gt 0 ]; then
-            echo ""
-            echo "Dotfiles: Hay $BEHIND nuevo(s) commit(s) en GitHub."
-            printf "Deseas actualizar ahora con git pull? [y/N]: "
-            read -r response
-            if [[ "$response" =~ ^[Yy]$ ]]; then
-                git -C "$DOTFILES_DIR" pull --ff-only && echo "Dotfiles actualizados correctamente."
+    if [ "$force" = false ] && [ -f "$last_check_file" ]; then
+        local last_check
+        last_check=$(cat "$last_check_file" 2>/dev/null || echo 0)
+        if [[ "$last_check" =~ ^[0-9]+$ ]]; then
+            if [ $((current_time - last_check)) -lt "$check_interval" ]; then
+                return 0
             fi
-            echo ""
         fi
     fi
-fi
+
+    # Update timestamp
+    echo "$current_time" > "$last_check_file" 2>/dev/null || true
+
+    # Silent fetch from remote main
+    if git -C "$DOTFILES_DIR" fetch --quiet origin main 2>/dev/null; then
+        local local_commit remote_commit
+        local_commit=$(git -C "$DOTFILES_DIR" rev-parse HEAD 2>/dev/null)
+        remote_commit=$(git -C "$DOTFILES_DIR" rev-parse origin/main 2>/dev/null)
+
+        if [ -n "$local_commit" ] && [ -n "$remote_commit" ] && [ "$local_commit" != "$remote_commit" ]; then
+            local behind
+            behind=$(git -C "$DOTFILES_DIR" rev-list --count "HEAD..origin/main" 2>/dev/null || echo 0)
+            if [ "$behind" -gt 0 ]; then
+                echo ""
+                echo "Dotfiles: Hay $behind nuevo(s) commit(s) en GitHub."
+                printf "Deseas actualizar ahora con git pull? [y/N]: "
+                local response
+                read -r response
+                if [[ "$response" =~ ^[Yy]$ ]]; then
+                    git -C "$DOTFILES_DIR" pull --ff-only && echo "Dotfiles actualizados correctamente."
+                fi
+                echo ""
+            fi
+        fi
+    fi
+}
+
+check_for_updates "$@"
