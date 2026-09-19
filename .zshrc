@@ -29,6 +29,9 @@ if [[ "$OSTYPE" == "darwin"* ]]; then
     if [ -d "/opt/homebrew/opt/qt/bin" ]; then
         export PATH="/opt/homebrew/opt/qt/bin:$PATH"
     fi
+    if [ -z "$SDKROOT" ] && [ -d "/Library/Developer/CommandLineTools/SDKs/MacOSX.sdk" ]; then
+        export SDKROOT="/Library/Developer/CommandLineTools/SDKs/MacOSX.sdk"
+    fi
 fi
 
 # Load shared aliases
