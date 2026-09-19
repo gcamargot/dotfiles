@@ -55,6 +55,7 @@ key_binding("td", "Telescope diagnostics", "Diagnostics")
 key_binding("tr", "Telescope oldfiles", "Recent files")
 key_binding("tb", "Telescope buffers", "Open buffers")
 key_binding("tc", "Telescope command_history", "Command History")
+key_binding("yq", "require('nahtao97.telescope').yq_search()", "󰈭 YAML Query (yq)", nil, true)
 
 -- Trouble
 key_binding("Td", "Trouble diagnostics", "Diagnostics")
