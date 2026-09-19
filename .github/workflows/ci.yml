@@ -1,0 +1,47 @@
+name: CI Dotfiles Verification
+
+on:
+  push:
+    branches: [ main, master ]
+  pull_request:
+    branches: [ main, master ]
+
+jobs:
+  validate:
+    name: Lint & Validate Configurations
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y shellcheck zsh neovim
+
+      - name: Run ShellCheck
+        run: |
+          shellcheck -s bash .aliases .bashrc install.sh tests/test.sh
+
+      - name: Verify Bash & Zsh syntax
+        run: |
+          bash -n .aliases .bashrc install.sh tests/test.sh
+          zsh -n .aliases .zshrc
+
+      - name: Run Dotfiles Test Suite
+        run: |
+          ./tests/test.sh
+
+      - name: Test Installation in Isolation
+        env:
+          HOME: /tmp/test-home
+        run: |
+          mkdir -p /tmp/test-home
+          ./install.sh
+          # Verify symlinks were created properly
+          test -L /tmp/test-home/.aliases
+          test -L /tmp/test-home/.bashrc
+          test -L /tmp/test-home/.tmux.conf
+          test -L /tmp/test-home/.config/nvim
+          echo "All symlinks verified successfully!"

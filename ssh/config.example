@@ -1,0 +1,27 @@
+# ==============================================================================
+# SSH Configuration Template (~/.ssh/config)
+# NOTE: DO NOT COMMIT PRIVATE KEYS. Only commit non-sensitive config options.
+# ==============================================================================
+
+# Global defaults for all hosts
+Host *
+    ServerAliveInterval 60
+    ServerAliveCountMax 3
+    AddKeysToAgent yes
+    IdentitiesOnly yes
+    # On macOS, use the keychain for passphrases:
+    # UseKeychain yes
+
+# Example: Bastion / Jump Host
+# Host bastion
+#     HostName bastion.example.com
+#     User devops
+#     Port 22
+#     IdentityFile ~/.ssh/id_ed25519
+
+# Example: Private Server via Bastion
+# Host internal-server
+#     HostName 10.0.1.50
+#     User ubuntu
+#     ProxyJump bastion
+#     IdentityFile ~/.ssh/id_ed25519

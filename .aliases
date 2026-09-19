@@ -1,0 +1,41 @@
+#!/bin/sh
+# ==============================================================================
+# Shared Aliases - Compatible with Bash and Zsh (macOS & Linux)
+# ==============================================================================
+
+# Core & Editors
+alias vi="nvim"
+alias ccusage="npx ccusage@latest"
+
+# Kubeswitch (Switcher)
+alias sw="switch"
+alias ns="switch namespace"
+
+# Kubernetes / Kubecolor
+# Use kubecolor as kubectl wrapper if available
+if command -v kubecolor >/dev/null 2>&1; then
+    alias kubectl="kubecolor"
+fi
+
+alias k="kubectl"
+alias kgp="kubectl get pods"
+alias kgpo="kubectl get pods -o wide"
+alias kgps="kubectl get pods --all-namespaces"
+alias kgns="kubectl get namespaces"
+alias kgn="kubectl get nodes"
+alias kgno="kubectl get nodes -o wide"
+alias kdp="kubectl describe pod"
+alias kl="kubectl logs"
+alias krew="kubectl krew"
+alias kvs="kubectl view-secret"
+
+# Git shortcuts
+alias gs="git status -sb"
+alias gd="git diff"
+alias gl="git log --oneline --graph --decorate -n 15"
+
+# Allow local machine-specific aliases without tracking them in git
+if [ -f "$HOME/.aliases.local" ]; then
+    # shellcheck disable=SC1091
+    . "$HOME/.aliases.local"
+fi
