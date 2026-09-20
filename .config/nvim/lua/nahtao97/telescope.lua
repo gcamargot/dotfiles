@@ -137,6 +137,7 @@ local function yq_search(opts)
 			display = display_text,
 			ordinal = string.format("%s %s", clean_val, filename),
 			filename = filename,
+			path = filename,
 			lnum = lnum,
 			col = col,
 			text = clean_val,
