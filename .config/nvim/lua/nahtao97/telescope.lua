@@ -84,7 +84,7 @@ local function yq_search(opts)
 
 		FILES=""
 		if command -v rg >/dev/null 2>&1 && [ -n "$LAST_KEY" ]; then
-			FILES=$(rg -l -- "$LAST_KEY" -g "*.yaml" -g "*.yml" 2>/dev/null)
+			FILES=$(rg -l -g "*.yaml" -g "*.yml" -- "$LAST_KEY" 2>/dev/null)
 		fi
 		if [ -z "$FILES" ]; then
 			FILES=$(find . -maxdepth 8 -type f \( -name "*.yaml" -o -name "*.yml" \) 2>/dev/null)
@@ -97,33 +97,50 @@ local function yq_search(opts)
 		done
 
 		EXPR=".. | ${PATH_EXPR}select(. != null) | [filename, (line // 1), 1, (to_json(0) | trim)] | join(\":\")"
-		echo "$FILES" | xargs yq -N -r "$EXPR" 2>/dev/null
+		printf "%s\n" "$FILES" | xargs yq -N -r "$EXPR" 2>/dev/null | grep -E '^.+:[0-9]+:'
 	]]
 
-	local base_maker = make_entry.gen_from_vimgrep(opts)
-
 	local custom_entry_maker = function(line)
-		local entry = base_maker(line)
-		if not entry then
+		if not line or line == "" or line:match("^%s*$") or line:match("^%-%-%-") then
 			return nil
 		end
 
-		if entry.filename then
-			entry.filename = entry.filename:gsub("^%./", "")
+		local filename, lnum, col, text = line:match("^(.-):(%d+):(%d+):(.*)$")
+		if not filename then
+			filename, lnum, text = line:match("^(.-):(%d+):(.*)$")
+			col = 1
 		end
 
-		entry.display = function(e)
-			local val = tostring(e.text or "")
-			if val:sub(1, 1) == '"' and val:sub(-1, -1) == '"' and #val >= 2 then
-				val = val:sub(2, -2)
-			end
-			if #val > 30 then
-				val = val:sub(1, 27) .. "..."
-			end
-			return string.format("%-30s │ %s:%d", val, e.filename, e.lnum)
+		if not filename or not lnum then
+			return nil
 		end
 
-		return entry
+		lnum = tonumber(lnum) or 1
+		col = tonumber(col) or 1
+		filename = filename:gsub("^%./", "")
+		text = text or ""
+
+		local clean_val = tostring(text)
+		if clean_val:sub(1, 1) == '"' and clean_val:sub(-1, -1) == '"' and #clean_val >= 2 then
+			clean_val = clean_val:sub(2, -2)
+		end
+
+		local display_val = clean_val
+		if #display_val > 30 then
+			display_val = display_val:sub(1, 27) .. "..."
+		end
+
+		local display_text = string.format("%-30s │ %s:%d", display_val, filename, lnum)
+
+		return {
+			value = line,
+			display = display_text,
+			ordinal = string.format("%s %s", clean_val, filename),
+			filename = filename,
+			lnum = lnum,
+			col = col,
+			text = clean_val,
+		}
 	end
 
 	local finder = finders.new_async_job({
