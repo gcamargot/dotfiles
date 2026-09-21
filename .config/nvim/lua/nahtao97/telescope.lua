@@ -194,7 +194,7 @@ local function yq_search(opts)
 
 		EXPR=".. | ${PATH_EXPR}select(. != null) | [filename, (line // 1), 1, (to_json(0) | trim)] | join(\":\")"
 
-		printf "%s\n" "$CANDIDATE_FILES" | head -n 200 | xargs -r -P 4 -n 1 yq -N -r "$EXPR" 2>/dev/null | grep --line-buffered -E '^.+:[0-9]+:'
+		printf "%s\n" "$CANDIDATE_FILES" | head -n 50 | xargs -r -P 4 -n 1 yq -N -r "$EXPR" 2>/dev/null | grep --line-buffered -E '^.+:[0-9]+:'
 	]]
 
 	local custom_entry_maker = function(line)
@@ -274,16 +274,16 @@ local function yq_search(opts)
 			vim.bo[self.state.bufnr].modifiable = true
 			vim.api.nvim_buf_set_lines(self.state.bufnr, 0, -1, false, display_lines)
 			vim.bo[self.state.bufnr].modifiable = false
-			vim.bo[self.state.bufnr].filetype = "yaml"
+			vim.bo[self.state.bufnr].syntax = "yaml"
 
-			-- Center on target line in preview window
+			-- Center on target line in preview window safely
 			if self.state.winid and vim.api.nvim_win_is_valid(self.state.winid) then
 				pcall(vim.api.nvim_win_set_cursor, self.state.winid, { target_disp_idx, 0 })
-				pcall(function()
-					vim.api.nvim_win_call(self.state.winid, function()
+				if self.state.bufnr and vim.api.nvim_buf_is_valid(self.state.bufnr) then
+					pcall(vim.api.nvim_buf_call, self.state.bufnr, function()
 						vim.cmd("norm! zz")
 					end)
-				end)
+				end
 			end
 
 			-- Apply highlights
@@ -331,11 +331,12 @@ local function yq_search(opts)
 
 	pickers
 		.new(opts, {
-			debounce = 150,
+			debounce = 250,
 			prompt_title = "Live YAML Query (yq)",
 			finder = finder,
 			previewer = yq_previewer,
 			sorter = require("telescope.sorters").empty(),
+			selection_strategy = "row",
 			attach_mappings = function(prompt_bufnr, map)
 				actions.select_default:replace(function()
 					local entry = action_state.get_selected_entry()
