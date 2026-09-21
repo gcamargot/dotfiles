@@ -28,3 +28,4 @@ shellcheck      | shellcheck     | shellcheck
 # On Linux, install_packages.sh handles mikefarah/yq binary fallback.
 yq              | -              | yq
 kubecolor       | -              | kubecolor
+yaml-language-server | -         | yaml-language-server

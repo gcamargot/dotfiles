@@ -70,8 +70,8 @@ local function get_indent(str)
 end
 
 local function build_collapsed_preview(filename, target_line)
-	local raw_lines = vim.fn.readfile(filename)
-	if not raw_lines or #raw_lines == 0 then
+	local ok, raw_lines = pcall(vim.fn.readfile, filename)
+	if not ok or not raw_lines or #raw_lines == 0 then
 		return {}, 1
 	end
 	target_line = math.max(1, math.min(target_line, #raw_lines))
@@ -145,24 +145,47 @@ local function yq_search(opts)
 	local current_prompt = ""
 	local ns_preview_hl = vim.api.nvim_create_namespace("yq_preview_hl")
 	local previewers = require("telescope.previewers")
+	local actions = require("telescope.actions")
+	local action_state = require("telescope.actions.state")
 
 	local bash_script = [[
 		QUERY="$1"
 		QUERY="${QUERY#yq }"
-		QUERY="$(echo "$QUERY" | xargs)"
-		[ -z "$QUERY" ] && exit 0
+		QUERY="${QUERY#: }"
+		QUERY_SPACES="${QUERY//[.\/,]/ }"
+		read -ra RAW_KEYS <<< "$QUERY_SPACES"
+		KEYS=()
+		for k in "${RAW_KEYS[@]}"; do
+			k="$(echo "$k" | xargs)"
+			[ -n "$k" ] && KEYS+=("$k")
+		done
 
-		IFS="." read -ra KEYS <<< "$QUERY"
-		LAST_KEY="${KEYS[-1]}"
+		[ ${#KEYS[@]} -eq 0 ] && exit 0
 
-		FILES=""
-		if command -v rg >/dev/null 2>&1 && [ -n "$LAST_KEY" ]; then
-			FILES=$(rg -l -i -g "*.yaml" -g "*.yml" -- "$LAST_KEY" 2>/dev/null)
+		CANDIDATE_FILES=""
+		if command -v rg >/dev/null 2>&1; then
+			FIRST_KEY="${KEYS[0]}"
+			CANDIDATE_FILES=$(rg -l -g "*.yaml" -g "*.yml" --glob "!*.tpl" -i "^\s*[\"']?${FIRST_KEY}[\"']?\s*:" 2>/dev/null)
+			if [ -z "$CANDIDATE_FILES" ]; then
+				CANDIDATE_FILES=$(rg -l -g "*.yaml" -g "*.yml" --glob "!*.tpl" -i -- "$FIRST_KEY" 2>/dev/null)
+			fi
+
+			for (( i=1; i<${#KEYS[@]}; i++ )); do
+				[ -z "$CANDIDATE_FILES" ] && break
+				k="${KEYS[i]}"
+				NEXT_FILES=$(printf "%s\n" "$CANDIDATE_FILES" | xargs -r rg -l -i "^\s*[\"']?${k}[\"']?\s*:" 2>/dev/null)
+				if [ -z "$NEXT_FILES" ]; then
+					NEXT_FILES=$(printf "%s\n" "$CANDIDATE_FILES" | xargs -r rg -l -i -- "$k" 2>/dev/null)
+				fi
+				CANDIDATE_FILES="$NEXT_FILES"
+			done
 		fi
-		if [ -z "$FILES" ]; then
-			FILES=$(find . -maxdepth 8 -type f \( -name "*.yaml" -o -name "*.yml" \) 2>/dev/null)
+
+		if [ -z "$CANDIDATE_FILES" ]; then
+			CANDIDATE_FILES=$(find . -maxdepth 6 -type f \( -name "*.yaml" -o -name "*.yml" \) ! -name "*.tpl" 2>/dev/null | head -n 500)
 		fi
-		[ -z "$FILES" ] && exit 0
+
+		[ -z "$CANDIDATE_FILES" ] && exit 0
 
 		PATH_EXPR=""
 		for k in "${KEYS[@]}"; do
@@ -170,7 +193,8 @@ local function yq_search(opts)
 		done
 
 		EXPR=".. | ${PATH_EXPR}select(. != null) | [filename, (line // 1), 1, (to_json(0) | trim)] | join(\":\")"
-		printf "%s\n" "$FILES" | xargs yq -N -r "$EXPR" 2>/dev/null | grep -E '^.+:[0-9]+:'
+
+		printf "%s\n" "$CANDIDATE_FILES" | head -n 200 | xargs -r -P 4 -n 1 yq -N -r "$EXPR" 2>/dev/null | grep --line-buffered -E '^.+:[0-9]+:'
 	]]
 
 	local custom_entry_maker = function(line)
@@ -204,13 +228,14 @@ local function yq_search(opts)
 		end
 
 		local display_text = string.format("%-30s │ %s:%d", display_val, filename, lnum)
+		local abs_path = vim.fs.normalize(vim.startswith(filename, "/") and filename or (opts.cwd .. "/" .. filename))
 
 		return {
 			value = line,
 			display = display_text,
 			ordinal = string.format("%s %s", clean_val, filename),
 			filename = filename,
-			path = filename,
+			path = abs_path,
 			lnum = lnum,
 			col = col,
 			text = clean_val,
@@ -237,13 +262,13 @@ local function yq_search(opts)
 
 			local clean_query = (active_prompt or ""):gsub("^yq%s+", "")
 			local query_keys = {}
-			for k in clean_query:gmatch("[^%.]+") do
+			for k in clean_query:gmatch("[^%.%s]+") do
 				if #k > 0 then
 					table.insert(query_keys, k)
 				end
 			end
 
-			local full_path = vim.fn.expand(entry.path or entry.filename)
+			local full_path = entry.path or vim.fn.expand(entry.filename)
 			local display_lines, target_disp_idx = build_collapsed_preview(full_path, entry.lnum or 1)
 
 			vim.bo[self.state.bufnr].modifiable = true
@@ -311,6 +336,28 @@ local function yq_search(opts)
 			finder = finder,
 			previewer = yq_previewer,
 			sorter = require("telescope.sorters").empty(),
+			attach_mappings = function(prompt_bufnr, map)
+				actions.select_default:replace(function()
+					local entry = action_state.get_selected_entry()
+					if not entry then
+						vim.notify("No hay ninguna coincidencia seleccionada.", vim.log.levels.WARN, { title = "YAML Query" })
+						return
+					end
+					actions.close(prompt_bufnr)
+					local target_path = entry.path or entry.filename
+					if target_path and target_path ~= "" then
+						vim.cmd("edit " .. vim.fn.fnameescape(target_path))
+						if entry.lnum then
+							local max_line = vim.api.nvim_buf_line_count(0)
+							local target_row = math.max(1, math.min(entry.lnum, max_line))
+							local target_col = math.max(0, (entry.col or 1) - 1)
+							pcall(vim.api.nvim_win_set_cursor, 0, { target_row, target_col })
+							vim.cmd("norm! zz")
+						end
+					end
+				end)
+				return true
+			end,
 		})
 		:find()
 end

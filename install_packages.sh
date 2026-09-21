@@ -104,6 +104,12 @@ elif [ "$PKG_MGR" = "apt" ]; then
         curl -sL "https://github.com/mikefarah/yq/releases/latest/download/${YQ_BIN}" -o "$HOME/.local/bin/yq"
         chmod +x "$HOME/.local/bin/yq"
     fi
+
+    # Fallback for yaml-language-server on Linux if npm is available
+    if ! command -v yaml-language-server >/dev/null 2>&1 && command -v npm >/dev/null 2>&1; then
+        echo "Installing yaml-language-server via npm..."
+        npm install -g yaml-language-server
+    fi
 fi
 
 echo "Package installation completed successfully!"
