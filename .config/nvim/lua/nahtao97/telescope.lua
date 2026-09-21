@@ -64,6 +64,75 @@ telescope.setup({
 })
 --telescope.load_extension("projects")
 
+local function get_indent(str)
+	local s = str:match("^(%s*)")
+	return s and #s or 0
+end
+
+local function build_collapsed_preview(filename, target_line)
+	local raw_lines = vim.fn.readfile(filename)
+	if not raw_lines or #raw_lines == 0 then
+		return {}, 1
+	end
+	target_line = math.max(1, math.min(target_line, #raw_lines))
+
+	local ancestors = {}
+	local cur_idx = target_line
+	local cur_indent = get_indent(raw_lines[cur_idx])
+
+	while cur_idx > 1 and cur_indent > 0 do
+		cur_idx = cur_idx - 1
+		local line_str = raw_lines[cur_idx]
+		if line_str:match("%S") and not line_str:match("^%s*#") then
+			local indent = get_indent(line_str)
+			if indent < cur_indent then
+				table.insert(ancestors, 1, cur_idx)
+				cur_indent = indent
+			end
+		end
+	end
+
+	local milestones = {}
+	for _, a in ipairs(ancestors) do
+		table.insert(milestones, a)
+	end
+	table.insert(milestones, target_line)
+	if target_line + 1 <= #raw_lines then
+		table.insert(milestones, target_line + 1)
+	end
+	if target_line + 2 <= #raw_lines then
+		table.insert(milestones, target_line + 2)
+	end
+
+	local display_lines = {}
+	local target_display_idx = 1
+	local max_gap = 3
+
+	for m_idx = 1, #milestones do
+		local cur_line_num = milestones[m_idx]
+		local prev_line_num = milestones[m_idx - 1]
+
+		if prev_line_num then
+			local gap = cur_line_num - prev_line_num - 1
+			if gap > max_gap then
+				local indent_str = string.rep(" ", get_indent(raw_lines[cur_line_num]))
+				table.insert(display_lines, indent_str .. "... (" .. gap .. " lineas omitidas)")
+			elseif gap > 0 then
+				for g = prev_line_num + 1, cur_line_num - 1 do
+					table.insert(display_lines, raw_lines[g])
+				end
+			end
+		end
+
+		table.insert(display_lines, raw_lines[cur_line_num])
+		if cur_line_num == target_line then
+			target_display_idx = #display_lines
+		end
+	end
+
+	return display_lines, target_display_idx
+end
+
 local function yq_search(opts)
 	opts = opts or {}
 	opts.cwd = opts.cwd or uv.cwd()
@@ -72,6 +141,10 @@ local function yq_search(opts)
 		vim.notify("yq no está instalado en el sistema. Asegúrate de tener mikefarah/yq instalado.", vim.log.levels.ERROR, { title = "YAML Query" })
 		return
 	end
+
+	local current_prompt = ""
+	local ns_preview_hl = vim.api.nvim_create_namespace("yq_preview_hl")
+	local previewers = require("telescope.previewers")
 
 	local bash_script = [[
 		QUERY="$1"
@@ -84,7 +157,7 @@ local function yq_search(opts)
 
 		FILES=""
 		if command -v rg >/dev/null 2>&1 && [ -n "$LAST_KEY" ]; then
-			FILES=$(rg -l -g "*.yaml" -g "*.yml" -- "$LAST_KEY" 2>/dev/null)
+			FILES=$(rg -l -i -g "*.yaml" -g "*.yml" -- "$LAST_KEY" 2>/dev/null)
 		fi
 		if [ -z "$FILES" ]; then
 			FILES=$(find . -maxdepth 8 -type f \( -name "*.yaml" -o -name "*.yml" \) 2>/dev/null)
@@ -144,11 +217,87 @@ local function yq_search(opts)
 		}
 	end
 
+	local yq_previewer = previewers.new_buffer_previewer({
+		title = "YAML Context Preview",
+		dyn_title = function(_, entry)
+			return entry.filename or "Preview"
+		end,
+		define_preview = function(self, entry, status)
+			if not entry or not entry.filename then
+				return
+			end
+
+			local active_prompt = current_prompt
+			if status and status.picker then
+				local p = status.picker:_get_prompt()
+				if p and p ~= "" then
+					active_prompt = p
+				end
+			end
+
+			local clean_query = (active_prompt or ""):gsub("^yq%s+", "")
+			local query_keys = {}
+			for k in clean_query:gmatch("[^%.]+") do
+				if #k > 0 then
+					table.insert(query_keys, k)
+				end
+			end
+
+			local full_path = vim.fn.expand(entry.path or entry.filename)
+			local display_lines, target_disp_idx = build_collapsed_preview(full_path, entry.lnum or 1)
+
+			vim.bo[self.state.bufnr].modifiable = true
+			vim.api.nvim_buf_set_lines(self.state.bufnr, 0, -1, false, display_lines)
+			vim.bo[self.state.bufnr].modifiable = false
+			vim.bo[self.state.bufnr].filetype = "yaml"
+
+			-- Center on target line in preview window
+			if self.state.winid and vim.api.nvim_win_is_valid(self.state.winid) then
+				pcall(vim.api.nvim_win_set_cursor, self.state.winid, { target_disp_idx, 0 })
+				pcall(function()
+					vim.api.nvim_win_call(self.state.winid, function()
+						vim.cmd("norm! zz")
+					end)
+				end)
+			end
+
+			-- Apply highlights
+			pcall(vim.api.nvim_buf_clear_namespace, self.state.bufnr, ns_preview_hl, 0, -1)
+
+			-- Background highlight for the target line
+			if target_disp_idx and target_disp_idx <= #display_lines then
+				pcall(vim.api.nvim_buf_add_highlight, self.state.bufnr, ns_preview_hl, "TelescopePreviewLine", target_disp_idx - 1, 0, -1)
+			end
+
+			-- Highlight matched keys and ellipses
+			for line_idx, line_text in ipairs(display_lines) do
+				if line_text:match("%.%.%.") then
+					pcall(vim.api.nvim_buf_add_highlight, self.state.bufnr, ns_preview_hl, "Comment", line_idx - 1, 0, -1)
+				end
+
+				local lower_line = line_text:lower()
+				for _, key in ipairs(query_keys) do
+					local lower_key = key:lower()
+					local start_col = 0
+					while true do
+						local s, e = lower_line:find(lower_key, start_col + 1, true)
+						if not s then
+							break
+						end
+						pcall(vim.api.nvim_buf_add_highlight, self.state.bufnr, ns_preview_hl, "TelescopePreviewMatch", line_idx - 1, s - 1, e)
+						start_col = e
+					end
+				end
+			end
+		end,
+	})
+
 	local finder = finders.new_async_job({
 		command_generator = function(prompt)
 			if not prompt or prompt == "" or #prompt < 2 then
 				return nil
 			end
+			current_prompt = prompt
 			return { "bash", "-c", bash_script, "--", prompt }
 		end,
 		entry_maker = custom_entry_maker,
@@ -160,7 +309,7 @@ local function yq_search(opts)
 			debounce = 150,
 			prompt_title = "Live YAML Query (yq)",
 			finder = finder,
-			previewer = conf.grep_previewer(opts),
+			previewer = yq_previewer,
 			sorter = require("telescope.sorters").empty(),
 		})
 		:find()
